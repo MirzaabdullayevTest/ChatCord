@@ -33,7 +33,8 @@ io.on('connection', socket => {
 
 })
 
-const port = normalizePort('3000' || process.env.PORT)
+const port = normalizePort(process.env.PORT || '3000')
+app.set('port', port);
 
 // Server is running
 server.listen(port, () => {
