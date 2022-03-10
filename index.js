@@ -2,9 +2,11 @@ const express = require('express')
 const app = express()
 const path = require('path')
 const server = require('http').createServer(app)
-const formatMessage = require('./utils/formatMessage')
 const socketio = require('socket.io')
 const io = socketio(server)
+
+const formatMessage = require('./utils/formatMessage')
+const { userJoin, getCurrentUser, leaveUser, joinRoom } = require('./utils/users')
 
 const bot = 'Chat bot'
 // Static folder
@@ -12,23 +14,39 @@ app.use(express.static(path.join(__dirname, 'public')))
 
 // Running client
 io.on('connection', socket => {
-    console.log('Socket.io is running...');
+    socket.on('joinRoom', ({ username, room }) => {
+        // console.log(username, room);
 
-    // Clientga ma'lumot berish
-    socket.emit('message', formatMessage(bot, 'Welcome to socket and hello from server...'))  // emit bu tarqatish socket emit bitta client, userga tarqatadi
+        const user = userJoin(socket.id, username, room)
 
-    // broadcasting
-    socket.broadcast.emit('message', formatMessage(bot, 'A user joined the group'))  // bu hammaga emitliydi faqat foydalanuvchini o'zidan tashqari. socket.emit dan farqi broadcast hammaga socket.emit faqat ulangan foydalanuvchini o'ziga ko'rinadi
+        socket.join(user.room)
 
-    // io.emit('ketmon', 'HEllo everyone')  // bu hamma uchun emitlaydi
-    socket.on('disconnect', () => {
-        io.emit('message', formatMessage(bot, 'A user left the chat'))
+        const users = joinRoom(user.room)
+
+        socket.emit('roomUsers', users)
+
+        socket.emit('message', formatMessage(bot, 'Welcome to socket and hello from server...'))  // emit bu tarqatish socket emit bitta client, userga tarqatadi
+
+        // broadcasting
+        socket.broadcast.to(user.room).emit('message', formatMessage(bot, `${user.username} joined the group`))  // bu hammaga emitliydi faqat foydalanuvchini o'zidan tashqari. socket.emit dan farqi broadcast hammaga socket.emit faqat ulangan foydalanuvchini o'ziga ko'rinadi
     })
+
+    // console.log('Socket.io is running...');
+    // Clientga ma'lumot berish
 
     // Odamdan ma'lumot olish
     socket.on('chat-message', (msg) => {
-        // console.log(msg);
-        io.emit('message', formatMessage('User', msg))
+        const user = getCurrentUser(socket.id)
+
+        io.to(user.room).emit('message', formatMessage(user.username, msg))
+    })
+
+    // io.emit('ketmon', 'HEllo everyone')  // bu hamma uchun emitlaydi
+    socket.on('disconnect', () => {
+        const user = leaveUser(socket.id)
+
+        // console.log('Left user =>', user);
+        io.to(user.room).emit('message', formatMessage(bot, `${user.username} left the chat`))
     })
 
 })
